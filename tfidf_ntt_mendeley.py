@@ -38,7 +38,6 @@ class SpacyPreprocessor:
         self._lemmatize = lemmatize
 
         if not spacy_model:
-            download_spacy_model()
             self.model = spacy.load("en_core_web_sm")
         else:
             self.model = spacy_model
@@ -133,6 +132,7 @@ class SpacyPreprocessor:
         return text
 
 def procesPipe(text):
+    SpacyPreprocessor.download_spacy_model()
     spacy_model = SpacyPreprocessor.load_model()
     preprocessor = SpacyPreprocessor(spacy_model=spacy_model, lemmatize=True, remove_numbers=True, 
                                      remove_stopwords=True)
