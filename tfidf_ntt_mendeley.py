@@ -42,15 +42,11 @@ class SpacyPreprocessor:
         else:
             self.model = spacy_model
 
-    @staticmethod
-    def download_spacy_model(model="en_core_web_sm"):
-        print(f"Downloading spaCy model {model}")
-        spacy.cli.download(model)
-        print(f"Finished downloading model")
 
-    @staticmethod
-    def load_model(model="en_core_web_sm"):
-        return spacy.load(model, disable=["ner", "parser"])
+    
+    # @staticmethod
+    # def load_model(model="en_core_web_sm"):
+    #     return spacy.load(model, disable=["ner", "parser"])
 
     def tokenize(self, text) -> List[str]:
         """
@@ -132,7 +128,7 @@ class SpacyPreprocessor:
         return text
 
 def procesPipe(text):
-    spacy_model = SpacyPreprocessor.load_model()
+    spacy_model = load_spacy_model()
     preprocessor = SpacyPreprocessor(spacy_model=spacy_model, lemmatize=True, remove_numbers=True, 
                                      remove_stopwords=True)
     x = preprocessor.preprocess_text(text)
@@ -330,7 +326,7 @@ def getParsedArticlesPeriod(name, maxdate, mindate, term):
     return df
 
 @st.cache()
-def load_model(db):
+def train_model(db):
     db1 = db.copy()
     tfidf = TfidfVectorizer(ngram_range=(1,1))
     X = tfidf.fit_transform(db1['preprocess'])
@@ -367,10 +363,10 @@ def load_library():
     db['author'] = db.author.apply(lambda x: f"{x[0]} et al.")
     db = db[['title', 'abstract', 'instrument', 'keywords', 'mendeley-tags',
      'journal', 'doi', 'author', 'url', 'year']]
-    db['preprocess'] = db.apply(lambda row: procesPipe(' '.join(row[['title', 'abstract']])), axis=1)
+    db['preprocess'] = db.apply(lambda row: procesPipe(' '.join(row[['title', 'abstract']]), ), axis=1)
     return db
 
-def searchMendeley(df, tfidf, X, topN):
+def searchMendeley(df, tfidf, X):
     """
     giving a df with papers from pubmed, it will join title and abstract, prepocess it and 
     calculate the tf/IFD, for each paper. It will after measure the cosimne similaritie between each of the papers 
@@ -404,8 +400,8 @@ def df2results(df, db):
     total = []
     for x in range(0,df.shape[0]):
         # st.table(df.iloc[x])
-        result = pd.DataFrame({     'score':np.array(df.iloc[x]['scores']), 
-                                    'dbID':np.array(df.iloc[x]['links']), 
+        result = pd.DataFrame({     'score':list(df.iloc[x]['scores']), 
+                                    'dbID':list(df.iloc[x]['links']), 
                                     })
         result['queryID']=x 
         result['Title']=df.iloc[x]['title']
@@ -426,9 +422,9 @@ def df2results(df, db):
     
 
 @st.cache(max_entries = 10, suppress_st_warning=True)
-def pipeline(df, db, tfidf, X, topN):
+def pipeline(df, db, tfidf, X):
     # abstracts = list((df1[['title','abstract']].apply(lambda x: str(x[0]) + ' ' + str(x[1]), axis=1)))
-    df1 = searchMendeley(df, tfidf, X, topN)
+    df1 = searchMendeley(df, tfidf, X)
     return df2results(df1, db)
     # return similares
 
@@ -444,7 +440,18 @@ def filter_scores(df):
 def grouped_sugestions(df):
     return df.groupby(['queryID']) #[x for x in grouped_df]
 
-SpacyPreprocessor.download_spacy_model()
+
+def download_spacy_model(model="en_core_web_sm"):
+    print(f"Downloading spaCy model {model}")
+    spacy.cli.download(model)
+    print(f"Finished downloading model")
+
+@st.cache(allow_output_mutation=True)
+def load_spacy_model(name="en_core_web_sm"):
+    download_spacy_model()
+    return spacy.load(name, disable=["ner", "parser"])
+
+# spacy_model = load_spacy_model()
 db = load_library()
 
 year_from = st.sidebar.number_input('From', value=2019)
@@ -466,7 +473,7 @@ st.write('This tool use NLP technique to calculate the similarity between 2 pape
     'Suggestions, use the first and last name of the author'
     )
 
-tfidf, X = load_model(db)
+tfidf, X = train_model(db)
 
 
 
@@ -482,7 +489,7 @@ if name:
         st.write('No pubmed publications from', name, ' seqarched by ', term, 'between ', year_from, ' – ', year_to)
         st.stop()
     else:
-        resultsORrg = pipeline(df, db, tfidf, X, topN)
+        resultsORrg = pipeline(df, db, tfidf, X)
 try:    
     results = resultsORrg.copy()
     sugestions = filter_scores(results)
