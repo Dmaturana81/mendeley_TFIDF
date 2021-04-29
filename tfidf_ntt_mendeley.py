@@ -421,12 +421,10 @@ def df2results(df, db):
     return pd.concat(total)
     
 
-@st.cache(max_entries = 10, suppress_st_warning=True)
+@st.cache(max_entries = 10)
 def pipeline(df, db, tfidf, X):
-    # abstracts = list((df1[['title','abstract']].apply(lambda x: str(x[0]) + ' ' + str(x[1]), axis=1)))
     df1 = searchMendeley(df, tfidf, X)
     return df2results(df1, db)
-    # return similares
 
 def filter_scores(df):
     if technology == 'MST':
@@ -451,16 +449,16 @@ def load_spacy_model(name="en_core_web_sm"):
     download_spacy_model()
     return spacy.load(name, disable=["ner", "parser"])
 
-# spacy_model = load_spacy_model()
 db = load_library()
+tfidf, X = train_model(db)
 
 year_from = st.sidebar.number_input('From', value=2019)
 year_to = st.sidebar.number_input('to', value=2021)
 term = st.sidebar.selectbox('Search By:', ['Author', 'Title', 'Affiliation', 'First Author',
                                             'Last Author', 'Keywords'])
-topN = st.sidebar.number_input('Top # results for each paper', value=1)
+topN = st.sidebar.number_input('Top # results for each paper', value=3)
 technology = st.sidebar.selectbox('Filter results by technologies', ['All', 'MST', 'nanoDSF', 'Tycho'])
-cut_off = st.sidebar.number_input('Cut Off for similarity score', value=0.10)
+cut_off = st.sidebar.number_input('Cut Off for similarity score', value=0.20)
 
 st.title('Getting sugestions from Mendeley Library')
 st.write('This tool use NLP technique to calculate the similarity between 2 papers title and abstract, '
@@ -472,9 +470,6 @@ st.write('This tool use NLP technique to calculate the similarity between 2 pape
     ' and show the results by instrument related',
     'Suggestions, use the first and last name of the author'
     )
-
-tfidf, X = train_model(db)
-
 
 
 name = st.text_input(f"Search for a specific {term}")
