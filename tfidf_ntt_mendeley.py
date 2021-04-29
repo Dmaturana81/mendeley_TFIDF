@@ -38,6 +38,7 @@ class SpacyPreprocessor:
         self._lemmatize = lemmatize
 
         if not spacy_model:
+            download_spacy_model()
             self.model = spacy.load("en_core_web_sm")
         else:
             self.model = spacy_model
@@ -50,7 +51,6 @@ class SpacyPreprocessor:
 
     @staticmethod
     def load_model(model="en_core_web_sm"):
-        self.download_spacy_model()
         return spacy.load(model, disable=["ner", "parser"])
 
     def tokenize(self, text) -> List[str]:
