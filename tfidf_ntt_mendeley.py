@@ -132,7 +132,6 @@ class SpacyPreprocessor:
         return text
 
 def procesPipe(text):
-    SpacyPreprocessor.download_spacy_model()
     spacy_model = SpacyPreprocessor.load_model()
     preprocessor = SpacyPreprocessor(spacy_model=spacy_model, lemmatize=True, remove_numbers=True, 
                                      remove_stopwords=True)
@@ -445,6 +444,7 @@ def filter_scores(df):
 def grouped_sugestions(df):
     return df.groupby(['queryID']) #[x for x in grouped_df]
 
+SpacyPreprocessor.download_spacy_model()
 db = load_library()
 
 year_from = st.sidebar.number_input('From', value=2019)
