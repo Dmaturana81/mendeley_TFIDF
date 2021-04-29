@@ -351,7 +351,7 @@ def customizations(record):
 def load_library():
     db_list = []
     for file in ['Dianthus.bib', 'NanoDSF & Monolith.bib', 'Tycho.bib', 'NanoDSF.bib', 
-                 'nanoDSF & Tycho & Monolith.bib', 'Tycho & Monolith.bib', 'Monolith.bib']:
+                 'NanoDSF & Tycho & Monolith.bib', 'Tycho & Monolith.bib', 'Monolith.bib']:
         with open(f"./Data/{file}") as bib_file:
             print(file)
             parser = BibTexParser()
