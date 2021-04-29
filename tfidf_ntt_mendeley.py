@@ -174,16 +174,20 @@ def parse_paperinfo(paperinfo_xml):
     mayorKeys = parseKeys(paperinfo_xml['MedlineCitation'])
     article_xml['Keys'] = '; '.join(list(set(mayorKeys)))
     try:
-         for i, author_xml in enumerate(article_xml['autorlist']):
+        autorlist = []
+        for author_xml in article_xml['autorlist']:
             if author_xml.attributes['ValidYN'] == 'N':
-                print('no valido')
                 continue
             autor_dict = parse_author_xml(author_xml)
-            article_xml['autorlist'][i] = autor_dict
+            if autor_dict is None:
+                continue
+            autorlist.append(autor_dict)
+            # article_xml['autorlist'][i] = autor_dict
     except:
         print('ERROR: parsing author {}'.format(author_xml))
-
-    PubmedData.update(article_xml)
+    finally:
+        article_xml['autorlist'] = autorlist
+        PubmedData.update(article_xml)
     return PubmedData
 
 def parse_author_xml(autor_xml):
@@ -405,7 +409,8 @@ def df2results(df, db):
                                     })
         result['queryID']=x 
         result['Title']=df.iloc[x]['title']
-        if df.iloc[x]['autorlist'] not None:
+        print(df.iloc[x]['autorlist'])
+        if df.iloc[x]['autorlist'] is not None:
             result['Authors']= '; '.join([x['name'] for x in df.iloc[x]['autorlist']])
         else:
             result['Authors']=''
@@ -483,6 +488,7 @@ if not name:
 
 if name:
     df = getParsedArticlesPeriod(name, year_to, year_from, term)
+    # print(df['autorlist'])
     if df is None:
         st.write('No pubmed publications from', name, ' seqarched by ', term, 'between ', year_from, ' – ', year_to)
         st.stop()
