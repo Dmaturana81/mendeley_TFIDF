@@ -421,7 +421,7 @@ def df2results(df, db):
     return pd.concat(total)
     
 
-@st.cache(max_entries = 10)
+@st.cache(max_entries = 10, suppress_st_warning=True)
 def pipeline(df, db, tfidf, X):
     df1 = searchMendeley(df, tfidf, X)
     return df2results(df1, db)
