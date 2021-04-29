@@ -50,6 +50,7 @@ class SpacyPreprocessor:
 
     @staticmethod
     def load_model(model="en_core_web_sm"):
+        download_spacy_model()
         return spacy.load(model, disable=["ner", "parser"])
 
     def tokenize(self, text) -> List[str]:
