@@ -1,7 +1,6 @@
 import streamlit as st
 from Bio import Entrez
 import pandas as pd
-import numpy as np
 import bibtexparser
 import re
 from typing import List
