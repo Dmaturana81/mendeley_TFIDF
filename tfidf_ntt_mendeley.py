@@ -405,7 +405,10 @@ def df2results(df, db):
                                     })
         result['queryID']=x 
         result['Title']=df.iloc[x]['title']
-        result['Authors']= '; '.join([x['name'] for x in df.iloc[x]['autorlist']])
+        if df.iloc[x]['autorlist'] not None:
+            result['Authors']= '; '.join([x['name'] for x in df.iloc[x]['autorlist']])
+        else:
+            result['Authors']=''
         result['Abstract']=df.iloc[x]['abstract']
         result['Published']=df.iloc[x]['published']
         result['doi']=df.iloc[x]['doi']
