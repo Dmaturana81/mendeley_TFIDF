@@ -1,4 +1,6 @@
 import streamlit as st
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 from Bio import Entrez
 import pandas as pd
 import bibtexparser
@@ -16,11 +18,12 @@ class SpacyPreprocessor:
     def __init__(
         self,
         spacy_model=None,
-        remove_numbers=False,
-        remove_special=True,
+        remove_numbers=None,
+        remove_special=None,
         pos_to_remove=None,
-        remove_stopwords=False,
-        lemmatize=False,
+        remove_stopwords=None,
+        lemmatize=None,
+        standard = False,
     ):
         """
         Preprocesses text using spaCy
@@ -36,13 +39,14 @@ class SpacyPreprocessor:
         self._remove_stopwords = remove_stopwords
         self._remove_special = remove_special
         self._lemmatize = lemmatize
+        self._standard = standard
 
         if not spacy_model:
             self.model = spacy.load("en_core_web_sm")
         else:
             self.model = spacy_model
 
-
+        # self.model.disable_pipes(['ner','tagger','parser'])
     
     # @staticmethod
     # def load_model(model="en_core_web_sm"):
@@ -82,6 +86,17 @@ class SpacyPreprocessor:
     def __clean(self, doc: Doc) -> str:
 
         tokens = []
+        #Standard cleaning to do it at once
+        if self._standard:
+            for token in doc:
+                if token is (token.like_num or token.is_currency or token.is_stop or token.is_punct or token.is_space or token.is_quote or token.is_bracket):
+                    continue
+                else:
+                    tokens.append(token.lemma_)
+            text = " ".join(tokens)
+            text = re.sub(r"[^\x00-\x7F]+", "", text)
+            return text
+            
         # POS Tags removal
         if self._pos_to_remove:
             for token in doc:
@@ -89,6 +104,7 @@ class SpacyPreprocessor:
                     tokens.append(token)
         else:
             tokens = doc
+
 
         # Remove Numbers
         if self._remove_numbers:
@@ -129,8 +145,8 @@ class SpacyPreprocessor:
 
 def procesPipe(text):
     spacy_model = load_spacy_model()
-    preprocessor = SpacyPreprocessor(spacy_model=spacy_model, lemmatize=True, remove_numbers=True, 
-                                     remove_stopwords=True)
+    preprocessor = SpacyPreprocessor(spacy_model=spacy_model, standard=True)#) lemmatize=True, remove_numbers=True, 
+                                    #  remove_stopwords=True)
     x = preprocessor.preprocess_text(text)
     return x
 
@@ -409,7 +425,7 @@ def df2results(df, db):
                                     })
         result['queryID']=x 
         result['Title']=df.iloc[x]['title']
-        print(df.iloc[x]['autorlist'])
+        # print(df.iloc[x]['autorlist'])
         if df.iloc[x]['autorlist'] is not None:
             result['Authors']= '; '.join([x['name'] for x in df.iloc[x]['autorlist']])
         else:
@@ -419,12 +435,13 @@ def df2results(df, db):
         result['doi']=df.iloc[x]['doi']
         result['Journal']=df.iloc[x]['journal']
         result['Keys']=df.iloc[x]['Keys']
+        result['words'] = df.iloc[x]['process']
         result_merged = pd.merge(result, db, left_on='dbID', right_index=True)
         columns = [ 'score', 'dbID', 'queryID', 'Title', 'Abstract', 'Authors', 'Journal', 'Published', 'Keys', 'doi_x',
-        'title', 'instrument', 'abstract', 'mendeley-tags', 'journal', 'year', 'doi_y',  'author']
+        'title', 'instrument', 'abstract', 'mendeley-tags', 'journal', 'year', 'doi_y',  'author', 'words']
         result_merged = result_merged[columns]
         result_merged.columns = [ 'Score', 'dbID', 'queryID', 'Title', 'Abstract', 'Authors', 'Journal', 'Published', 'Keys', 'doi',
-        'DB Paper', 'Instrument', 'DB abstratc', 'Keywords DB', 'DB Journal', 'DB Year', 'DB doi',  'DB Author']
+        'DB Paper', 'Instrument', 'DB abstratc', 'Keywords DB', 'DB Journal', 'DB Year', 'DB doi',  'DB Author', 'words']
         total.append(result_merged.sort_values('Score', ascending=False))
     return pd.concat(total)
     
@@ -455,7 +472,7 @@ def download_spacy_model(model="en_core_web_sm"):
 @st.cache(allow_output_mutation=True)
 def load_spacy_model(name="en_core_web_sm"):
     download_spacy_model()
-    return spacy.load(name, disable=["ner", "parser"])
+    return spacy.load(name, disable=["ner", "parser", "tagger"])
 
 db = load_library()
 tfidf, X = train_model(db)
@@ -501,18 +518,22 @@ try:
     selected_refs =[]
     for table in grouped_sugestions:
         result = pd.DataFrame(table[1])
-        st.header(result.iloc[0]['Title'])
-        # authors = '; '.join([x['name'] for x in result.iloc[0]['Authors']])
+        fig = plt.figure(figsize=(5,2))
+        wordcloud = WordCloud(background_color='white').generate(result.iloc[0]['words'])
+        # Display the generated image:
+        plt.imshow(wordcloud, interpolation='bilinear')
+        plt.axis("off")
+        # plt.show()
+        col1, col2 = st.beta_columns(2)
+        with col1:
+            st.header(result.iloc[0]['Title'])
+        with col2:
+            st.pyplot(fig )
         st.subheader(result.iloc[0]['Published'])
         st.subheader(result.iloc[0]['Authors'])
-        # st.table(result)
-        # result = result[['score', 'title_x', 'instrument', 'mendeley-tags']]
-        # columns = ['Score', 'Mendeley Paper', 'Instrument', 'Mendeley Keys']
-        # resul.columns = columns
-    #     [ 'queryID', 'dbID', 'Score', 
-    # 'DB Paper', 'DB abstract', 'Instrument', 'Keywords DB', 'mendeley-tags', 'Journal DB', 'doi DB', 'Authors DB', 
-    # 'Title', 'Authors',  'Abstract',  'Keys', 'Published']
+
         st.table(result[['Score', 'DB Paper', 'Instrument', 'Keywords DB', 'Keys']].sort_values('Score', ascending=False).iloc[:topN])
+        
     exp_reference = st.button('Export Reference')
     if exp_reference:
         references = sugestions.groupby('dbID').count().sort_values('queryID', ascending=False).index
