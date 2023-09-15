@@ -1,4 +1,6 @@
 import streamlit as st
+import os
+from dotenv import load_dotenv
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 from Bio import Entrez
@@ -13,7 +15,10 @@ from bibtexparser.customization import author, convert_to_unicode, doi
 from bibtexparser.bparser import BibTexParser
 from sklearn.feature_extraction.text import TfidfVectorizer 
 from sklearn.metrics.pairwise import linear_kernel
+from pathlib import Path
 
+path_data = Path('./Mendeley')
+load_dotenv('./.env')
 class SpacyPreprocessor:
     def __init__(
         self,
@@ -159,8 +164,8 @@ def searchpb(search_term, retmax=200, retmode='xml', sort='relevance', mindate =
     retmode (str) -> Format of hits (xml es default)
     sort (str) -> Field to sort by (relevance Default)
     """
-    Entrez.email = 'elmaturana@gmail.com'
-    Entrez.api_key = '3cfd60b4f78696d27f1c4df78d3fe6f90a09'
+    Entrez.email = os.environ['PUBMED_EMAIL']
+    Entrez.api_key = os.environ['PUBMED_API_KEY']
     handle = Entrez.esearch(db='pubmed',
                             sort=sort,
                             retmax=retmax,
@@ -172,8 +177,8 @@ def searchpb(search_term, retmax=200, retmode='xml', sort='relevance', mindate =
 
 def fetch_details(id_list):
     ids = ','.join(id_list)
-    Entrez.email = 'elmaturana@gmail.com'
-    Entrez.api_key = '3cfd60b4f78696d27f1c4df78d3fe6f90a09'
+    Entrez.email = os.environ['PUBMED_EMAIL']
+    Entrez.api_key = os.environ['PUBMED_API_KEY']
     handle = Entrez.efetch(db='pubmed',
                            retmode='xml',
                            id=ids)
@@ -316,7 +321,7 @@ def parseMeshKeys(citationInfo):
 def parseKeys(citationInfo):
     return parseMayorKeys(citationInfo)#, parseMeshKeys(citationInfo)
 
-@st.cache(max_entries=10)
+@st.cache_data()
 def getParsedArticlesPeriod(name, maxdate, mindate, term):
     if term == 'Author':
         term = '[Author]'
@@ -345,7 +350,7 @@ def getParsedArticlesPeriod(name, maxdate, mindate, term):
     df = pd.DataFrame(articles)
     return df
 
-@st.cache()
+@st.cache_data()
 def train_model(db):
     db1 = db.copy()
     tfidf = TfidfVectorizer(ngram_range=(1,1))
@@ -363,12 +368,11 @@ def customizations(record):
     record = doi(record)
     return record
 
-@st.cache()
+@st.cache_data()
 def load_library():
     db_list = []
-    for file in ['Dianthus.bib', 'NanoDSF & Monolith.bib', 'Tycho.bib', 'NanoDSF.bib', 
-                 'NanoDSF & Tycho & Monolith.bib', 'Tycho & Monolith.bib', 'Monolith.bib']:
-        with open(f"./Data/{file}") as bib_file:
+    for file in ['All_270122.bib']:
+        with open((path_data / file)) as bib_file:
             print(file)
             parser = BibTexParser()
             parser.customization = customizations
@@ -403,6 +407,7 @@ def searchMendeley(df, tfidf, X):
     links = []
     df1['process'] = df1.apply(lambda row: procesPipe(' '.join(row[['title','abstract']])), axis=1)
     query_tfidf = tfidf.transform(df1['process'])
+    # print(query_tfidf)
     for i, query in enumerate(query_tfidf):
         progress_bar.progress(i/(df1.shape[0]))
         cosine_similarities = linear_kernel(query, X).flatten()
@@ -443,10 +448,10 @@ def df2results(df, db):
         result_merged.columns = [ 'Score', 'dbID', 'queryID', 'Title', 'Abstract', 'Authors', 'Journal', 'Published', 'Keys', 'doi',
         'DB Paper', 'Instrument', 'DB abstratc', 'Keywords DB', 'DB Journal', 'DB Year', 'DB doi',  'DB Author', 'words']
         total.append(result_merged.sort_values('Score', ascending=False))
+        print(total)
     return pd.concat(total)
     
 
-@st.cache(max_entries = 10, suppress_st_warning=True)
 def pipeline(df, db, tfidf, X):
     df1 = searchMendeley(df, tfidf, X)
     return df2results(df1, db)
@@ -469,10 +474,10 @@ def download_spacy_model(model="en_core_web_sm"):
     spacy.cli.download(model)
     print(f"Finished downloading model")
 
-@st.cache(allow_output_mutation=True)
+@st.cache_resource()
 def load_spacy_model(name="en_core_web_sm"):
     download_spacy_model()
-    return spacy.load(name, disable=["ner", "parser", "tagger"])
+    return spacy.load(name, disable=["ner"])
 
 db = load_library()
 tfidf, X = train_model(db)
@@ -510,6 +515,7 @@ if name:
         st.write('No pubmed publications from', name, ' seqarched by ', term, 'between ', year_from, ' – ', year_to)
         st.stop()
     else:
+        print('Enetering Pipeline')
         resultsORrg = pipeline(df, db, tfidf, X)
 try:    
     results = resultsORrg.copy()
@@ -519,12 +525,13 @@ try:
     for table in grouped_sugestions:
         result = pd.DataFrame(table[1])
         fig = plt.figure(figsize=(5,2))
+        print("before wordcloud")
         wordcloud = WordCloud(background_color='white').generate(result.iloc[0]['words'])
         # Display the generated image:
         plt.imshow(wordcloud, interpolation='bilinear')
         plt.axis("off")
-        # plt.show()
-        col1, col2 = st.beta_columns(2)
+        col1, col2 = st.columns(2)
+        print("after wordcloud")
         with col1:
             st.header(result.iloc[0]['Title'])
         with col2:
@@ -544,4 +551,5 @@ try:
             st.write(f"{i+1}. {row['author']}; \"{row['title']}\"; {row['journal']}; {row['year']}; {row['doi']}; {row['url']}")
 
 except:
+    print("Error in results")
     st.stop()
